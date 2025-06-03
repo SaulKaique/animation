@@ -11,7 +11,12 @@ import numpy as np
 def load_image(image_path):
     return Image.open(image_path).convert("RGB").resize((512, 512))
 
-def main(prompt, duration=10, image_path=None, output_path="video.mp4", fps=8):
+def main(prompt, duration=10, image_path=None, output_path="video/edit.mp4", fps=8):
+    # Limita duração máxima para 60 segundos
+    if duration > 60:
+        print("⚠️ Duração maior que 60s não é suportada, ajustando para 60s")
+        duration = 60
+
     # 💾 Model paths
     base_model = "runwayml/stable-diffusion-v1-5"
     motion_module = "./models/Motion_Module/mm_sd_v14.ckpt"
@@ -33,7 +38,7 @@ def main(prompt, duration=10, image_path=None, output_path="video.mp4", fps=8):
         init_image = None
 
     # 🎥 Frame count
-    num_frames = duration * fps  # e.g., 10s * 8fps = 80 frames
+    num_frames = duration * fps  # ex: 10s * 8fps = 80 frames
 
     # 🧪 Run generation
     result = pipe(
@@ -48,6 +53,10 @@ def main(prompt, duration=10, image_path=None, output_path="video.mp4", fps=8):
 
     video_frames = [frame for frame in result.frames]
     video_frames_np = [np.array(f) for f in video_frames]
+
+    # Garante que a pasta do output existe
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
     imageio.mimsave(output_path, video_frames_np, fps=fps)
     print(f"✅ Vídeo salvo em: {output_path}")
 
@@ -56,7 +65,7 @@ if __name__ == "__main__":
     parser.add_argument("--prompt", type=str, required=True, help="Descrição em português ou inglês")
     parser.add_argument("--duration", type=int, default=10, help="Duração em segundos (máx 60s)")
     parser.add_argument("--image", type=str, default=None, help="Caminho da imagem base (opcional)")
-    parser.add_argument("--output", type=str, default="video.mp4", help="Nome do arquivo de saída")
+    parser.add_argument("--output", type=str, default="video/edit.mp4", help="Nome do arquivo de saída")
     parser.add_argument("--fps", type=int, default=8, help="Frames por segundo")
     args = parser.parse_args()
 
