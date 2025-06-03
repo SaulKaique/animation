@@ -1,5 +1,3 @@
-# generate_animation.py
-
 import os
 import torch
 from diffusers import AnimateDiffPipeline, MotionAdapter, EulerDiscreteScheduler
@@ -7,40 +5,42 @@ from PIL import Image
 import argparse
 import imageio
 import numpy as np
+from huggingface_hub import login
 
 def load_image(image_path):
     return Image.open(image_path).convert("RGB").resize((512, 512))
 
-def main(prompt, duration=10, image_path=None, output_path="video/edit.mp4", fps=8):
-    # Limita duração máxima para 60 segundos
+def main(prompt, duration=10, image_path=None, output_path="video/edit.mp4", fps=8, hf_token=None):
     if duration > 60:
         print("⚠️ Duração maior que 60s não é suportada, ajustando para 60s")
         duration = 60
 
-    # 💾 Model paths
     base_model = "runwayml/stable-diffusion-v1-5"
-    motion_module = "guoyww/animatediff-mm-v1-4"
 
-    # 🧠 Load AnimateDiff pipeline
-    adapter = MotionAdapter.from_pretrained(motion_module)
+    # Coloque aqui o modelo correto e disponível do motion adapter
+    motion_module = "guoyww/animatediff-motion-adapter-v1-4"
+
+    # Se tiver token, passa para from_pretrained para autenticar
+    token_args = {"use_auth_token": hf_token} if hf_token else {}
+
+    print("🔄 Carregando o modelo e o pipeline...")
+
+    adapter = MotionAdapter.from_pretrained(motion_module, **token_args)
     pipe = AnimateDiffPipeline.from_pretrained(
         base_model,
         motion_adapter=adapter,
-        torch_dtype=torch.float16
+        torch_dtype=torch.float16,
+        **token_args
     ).to("cuda")
-    
+
     pipe.scheduler = EulerDiscreteScheduler.from_config(pipe.scheduler.config)
 
-    # 🖼️ Optional image input
-    if image_path and os.path.exists(image_path):
-        init_image = load_image(image_path)
-    else:
-        init_image = None
+    init_image = load_image(image_path) if image_path and os.path.exists(image_path) else None
 
-    # 🎥 Frame count
-    num_frames = duration * fps  # ex: 10s * 8fps = 80 frames
+    num_frames = duration * fps
 
-    # 🧪 Run generation
+    print("🎬 Gerando frames da animação... Isso pode levar alguns minutos.")
+
     result = pipe(
         prompt=prompt,
         num_frames=num_frames,
@@ -51,13 +51,11 @@ def main(prompt, duration=10, image_path=None, output_path="video/edit.mp4", fps
         init_image=init_image
     )
 
-    video_frames = [frame for frame in result.frames]
-    video_frames_np = [np.array(f) for f in video_frames]
+    video_frames_np = [np.array(f) for f in result.frames]
 
-    # Garante que a pasta do output existe
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
     imageio.mimsave(output_path, video_frames_np, fps=fps)
+
     print(f"✅ Vídeo salvo em: {output_path}")
 
 if __name__ == "__main__":
@@ -67,6 +65,12 @@ if __name__ == "__main__":
     parser.add_argument("--image", type=str, default=None, help="Caminho da imagem base (opcional)")
     parser.add_argument("--output", type=str, default="video/edit.mp4", help="Nome do arquivo de saída")
     parser.add_argument("--fps", type=int, default=8, help="Frames por segundo")
+    parser.add_argument("--token", type=str, default=None, help="Token Hugging Face para modelos privados")
+
     args = parser.parse_args()
 
-    main(args.prompt, args.duration, args.image, args.output, args.fps)
+    # Faz login se token for passado (opcional)
+    if args.token:
+        login(token=args.token)
+
+    main(args.prompt, args.duration, args.image, args.output, args.fps, args.token)
