@@ -19,7 +19,7 @@ def main(prompt, duration=10, image_path=None, output_path="video/edit.mp4", fps
 
     # 💾 Model paths
     base_model = "runwayml/stable-diffusion-v1-5"
-    motion_module = "./models/Motion_Module/mm_sd_v14.ckpt"
+    motion_module = "guoyww/animatediff-mm-v1-4"
 
     # 🧠 Load AnimateDiff pipeline
     adapter = MotionAdapter.from_pretrained(motion_module)
